@@ -6,7 +6,6 @@ DATE_REGEX="" #TODO
 
 T_FILTER=""
 DATE_FILTER_A=""
-DATE_FILTER_B="3000-12-31 23:59:59"
 FILES=""
 LIST_TICK=0
 command=0
@@ -76,7 +75,7 @@ then
     then
     cat ${FILES} | awk -v date_after="$DATE_FILTER_A" -F ';' '($1 > date_after){print $2;}' | sort -u
     else
-    cat ${FILES} | awk -v string="$T_FILTER" -F ';' '{if($1 > date_after && match(string, $2) ) {print $2}}' | sort -u
+    cat ${FILES} | awk -v string="$T_FILTER" -F ';' '{if($1 > date_after && match(string, $2)) {print $2}}' | sort -u
     fi
 exit 0
 fi
