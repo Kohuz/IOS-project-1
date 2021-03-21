@@ -67,26 +67,76 @@ done
 # awk -F ';' '{print $2, $NF}' ${FILES[@]}
 
 
-
+function list_tick {
+  if [ "$T_FILTER" = "" ]
+  then
+  cat ${FILES} | awk -v date_after="$DATE_FILTER_A" -F ';' '{if($1 > date_after)print $2;}' | sort -u
+  else
+  cat ${FILES} | awk -v string="$T_FILTER" -v date_after="$DATE_FILTER_A" -F ';' '{if($1 > date_after && match(string, $2)) {print $2}}' | sort -u
+  fi
+exit 0
+}
 
 if [ $LIST_TICK -eq 1 ]
 then
+    list_tick
+exit 0
+fi
+
+##EXECUTE POS COMMAND
+if [ $POS -eq 1 ]
+then
     if [ "$T_FILTER" = "" ]
     then
-    cat ${FILES} | awk -v date_after="$DATE_FILTER_A" -F ';' '($1 > date_after){print $2;}' | sort -u
+    cat ${FILES} | awk -v date_after="$DATE_FILTER_A" -F ';' '($1 > date_after){
+      sum = 0
+      if($3 == "buy"){
+        sum-=$6*$4
+      }
+      else{
+        sum+=$6*$4
+      }
+      printf "%s $%.2f\n", $2, sum
+    }' | sort -u
     else
     cat ${FILES} | awk -v string="$T_FILTER" -F ';' '{if($1 > date_after && match(string, $2)) {print $2}}' | sort -u
     fi
 exit 0
 fi
 
-
 if [ $PROFIT -eq 1 ]
 then
-cat ${FILES} | awk -v string="$T_FILTER" -F ';' '{if(string==""){if($3 == "buy"){sum+=$6*$4}else{sum-=$6*$4}}}END{printf "%.2f\n", sum}'
+  if [ "$T_FILTER" = "" ]
+  then
+  cat ${FILES} | awk -v date_after="$DATE_FILTER_A" -F ';' '{
+    if($1 > date_after){
+    if($3 == "buy"){
+      sum-=$6*$4
+    }
+    else{
+      sum+=$6*$4
+    }
+  }
+}
+  END{printf "%.2f\n", sum}'
+else
+cat ${FILES} | awk -v date_after="$DATE_FILTER_A" -v string="$T_FILTER" -F ';' '{
+  if(match(string, $2) && $1 > date_after){
+  if($3 == "buy"){
+    sum-=$6*$4
+  }
+  else{
+    sum+=$6*$4
+      }
+    }
+  }
+END{printf "%.2f\n", sum}'
+fi
 exit 0
 fi
 
+
+#no command was given
 if [ "$T_FILTER" = "" ]
 then
 cat ${FILES}
