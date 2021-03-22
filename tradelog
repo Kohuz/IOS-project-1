@@ -6,9 +6,14 @@ DATE_REGEX="" #TODO
 
 T_FILTER=""
 DATE_FILTER_A=""
+DATE_FILTER_B="4000-12-30 23:59:59"
 FILES=""
 LIST_TICK=0
 command=0
+PROFIT=0
+POS=0
+LAST_PRICE=0
+HIST_ORD=0
 while [ $# -gt 0 ]; do
   case "$1" in
     "-h") echo "help used";;
@@ -38,10 +43,11 @@ while [ $# -gt 0 ]; do
     GRAPH_POS=1;;
 
 
-    "-a") DATE_FILTER_A="$2 "
+    "-a") DATE_FILTER_A="$2"
     echo $DATE_FILTER_A
     shift;;
-    "-b") echo "$2"
+    "-b") DATE_FILTER_B="$2"
+    echo $DATE_FILTER_B
     shift;;
     "-t") T_FILTER+="$2 "
     shift;;
@@ -64,52 +70,29 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-# awk -F ';' '{print $2, $NF}' ${FILES[@]}
-
 
 function list_tick {
   if [ "$T_FILTER" = "" ]
   then
-  cat ${FILES} | awk -v date_after="$DATE_FILTER_A" -F ';' '{if($1 > date_after)print $2;}' | sort -u
+  cat ${FILES} |
+  awk -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" -F ';' '
+  {if($1 > date_after && $1 < date_before)print $2;}' | sort -u
   else
-  cat ${FILES} | awk -v string="$T_FILTER" -v date_after="$DATE_FILTER_A" -F ';' '{if($1 > date_after && match(string, $2)) {print $2}}' | sort -u
+  cat ${FILES} |
+  awk -v string="$T_FILTER" -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" -F ';' '
+  {if($1 > date_after && $1 < date_before && match(string, $2)) {print $2}}' | sort -u
   fi
 exit 0
 }
 
-if [ $LIST_TICK -eq 1 ]
-then
-    list_tick
-exit 0
-fi
+function profit {
+  #statements
 
-##EXECUTE POS COMMAND
-if [ $POS -eq 1 ]
-then
-    if [ "$T_FILTER" = "" ]
-    then
-    cat ${FILES} | awk -v date_after="$DATE_FILTER_A" -F ';' '($1 > date_after){
-      sum = 0
-      if($3 == "buy"){
-        sum-=$6*$4
-      }
-      else{
-        sum+=$6*$4
-      }
-      printf "%s $%.2f\n", $2, sum
-    }' | sort -u
-    else
-    cat ${FILES} | awk -v string="$T_FILTER" -F ';' '{if($1 > date_after && match(string, $2)) {print $2}}' | sort -u
-    fi
-exit 0
-fi
-
-if [ $PROFIT -eq 1 ]
-then
   if [ "$T_FILTER" = "" ]
   then
-  cat ${FILES} | awk -v date_after="$DATE_FILTER_A" -F ';' '{
-    if($1 > date_after){
+  cat ${FILES} |
+  awk -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" -F ';' '{
+    if($1 > date_after && $1 < date_before){
     if($3 == "buy"){
       sum-=$6*$4
     }
@@ -120,8 +103,9 @@ then
 }
   END{printf "%.2f\n", sum}'
 else
-cat ${FILES} | awk -v date_after="$DATE_FILTER_A" -v string="$T_FILTER" -F ';' '{
-  if(match(string, $2) && $1 > date_after){
+cat ${FILES} |
+awk -v string="$T_FILTER" -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B"  -F ';' '{
+  if(match(string, $2) && $1 > date_after && $1 < date_before){
   if($3 == "buy"){
     sum-=$6*$4
   }
@@ -132,16 +116,60 @@ cat ${FILES} | awk -v date_after="$DATE_FILTER_A" -v string="$T_FILTER" -F ';' '
   }
 END{printf "%.2f\n", sum}'
 fi
+}
+
+if [ $LIST_TICK -eq 1 ]
+then
+    list_tick
 exit 0
 fi
+
+
+if [ $PROFIT -eq 1 ]
+then
+      profit
+exit 0
+fi
+
+##EXECUTE POS COMMANDy
+if [ $POS -eq 1 ]
+then
+    if [ "$T_FILTER" = "" ]
+    then
+    cat ${FILES} |
+    awk -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" -F ';' '
+    ($1 > date_after && $1 < date_before){
+      sum = 0
+      if($3 == "buy"){
+        sum-=$6*$4
+      }
+      else{
+        sum+=$6*$4
+      }
+      printf "%s $%.2f\n", $2, sum
+    }' | sort -u
+    else
+    cat ${FILES} |
+    awk -v string="$T_FILTER" -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" -F ';' '
+    {if($1 > date_after && $1 < date_before && match(string, $2)) {print $2}}' | sort -u
+    fi
+exit 0
+fi
+
+
 
 
 #no command was given
 if [ "$T_FILTER" = "" ]
 then
-cat ${FILES}
+cat ${FILES} |
+awk -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" -F ';' '
+{if($1 > date_after && $1 < date_before) {print}}'
+
 else
-cat ${FILES} | awk -v string="$T_FILTER" -F ';' 'match(string, $2) {print}'
+cat ${FILES} |
+awk -v string="$T_FILTER" -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" -F ';' '
+{if($1 > date_after && $1 < date_before && match(string, $2)) {print}}'
 exit 0
 fi
 # awk -F ';' '{print $2, $NF}' ${FILES[@]}
