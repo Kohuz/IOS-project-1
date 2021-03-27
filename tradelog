@@ -118,6 +118,36 @@ END{printf "%.2f\n", sum}'
 fi
 }
 
+function pos {
+  if [ "$T_FILTER" = "" ]
+  then
+  TICKERS=$(cat ${FILES} | awk -F ';' '{print($2)}' | sort -u)
+  # cat ${FILES} | TICKERS="awk -F ';' '{print($2 )}'" | sort -u
+  for ticker in $TICKERS
+  do
+  cat ${FILES} |
+     awk -v ticker="$ticker" -F ';' '{if(match(ticker, $2)) {
+         if($3 == "buy"){
+           sum+=$6
+         }
+         else{
+           sum-=$6
+         }
+         price=$4;
+       }
+     }END{printf"%s %.2f\n", ticker, sum * price}'
+  done
+
+  # else
+  # cat ${FILES} |
+  # awk -v string="$T_FILTER" -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" -F ';' '
+  # {if($1 > date_after && $1 < date_before && match(string, $2)) {print $2}}' | sort -u
+fi
+}
+
+
+
+
 if [ $LIST_TICK -eq 1 ]
 then
     list_tick
@@ -136,27 +166,7 @@ HELP=""
 ##EXECUTE POS COMMAND
 if [ $POS -eq 1 ]
 then
-    if [ "$T_FILTER" = "" ]
-    then
-    TICKERS=$(cat ${FILES} | awk -F ';' '{print($2)}' | sort -u)
-    # cat ${FILES} | TICKERS="awk -F ';' '{print($2 )}'" | sort -u
-    for ticker in $TICKERS
-    do
-    HELP+='\n'
-    HELP+=$(cat ${FILES} |
-       awk -v ticker="$ticker" -F ';' '{if(match(ticker, $2)) {
-           if($3 == "buy"){
-             sum+=$6
-           }
-           else{
-             sum-=$6
-           }
-           price=$4;
-         }
-       }END{printf"%s %.2f", ticker, sum * price}')
-    done
-    echo $HELP
-
+    pos | sort -n -r -k 2
     # else
     # cat ${FILES} |
     # awk -v string="$T_FILTER" -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" -F ';' '
