@@ -122,11 +122,11 @@ function pos {
   if [ "$T_FILTER" = "" ]
   then
   TICKERS=$(cat ${FILES} | awk -F ';' '{print($2)}' | sort -u)
-  # cat ${FILES} | TICKERS="awk -F ';' '{print($2 )}'" | sort -u
   for ticker in $TICKERS
   do
   cat ${FILES} |
-     awk -v ticker="$ticker" -F ';' '{if(match(ticker, $2)) {
+     awk -F ';' -v spaces="      " -v ticker="$ticker" -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" '
+     {if(match(ticker, $2) && $1 > date_after && $1 < date_before) {
          if($3 == "buy"){
            sum+=$6
          }
@@ -135,18 +135,88 @@ function pos {
          }
          price=$4;
        }
-     }END{printf"%s %.2f\n", ticker, sum * price}'
+     }END{printf"%-s      : %*.2f\n", ticker,spaces, sum * price}'
   done
+  else
+    TICKERS=$(cat ${FILES} | awk -v string="$T_FILTER" -F ';' '{if(match(string, $2)){print $2}}' | sort -u)
+    for ticker in $TICKERS
+    do
+    cat ${FILES} |
+       awk -v spaces="      " -v ticker="$ticker" -F ';' -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" '
+       {if(match(ticker, $2) && $1 > date_after && $1 < date_before) {
+           if($3 == "buy"){
+             sum+=$6
+           }
+           else{
+             sum-=$6
+           }
+           price=$4;
+         }
+       }END{printf"%-s      : %*.2f\n", ticker,spaces, sum * price}'
+     done
+fi
+}
 
-  # else
-  # cat ${FILES} |
-  # awk -v string="$T_FILTER" -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" -F ';' '
-  # {if($1 > date_after && $1 < date_before && match(string, $2)) {print $2}}' | sort -u
+function last_price {
+  if [ "$T_FILTER" = "" ]
+  then
+  TICKERS=$(cat ${FILES} | awk -F ';' '{print($2)}' | sort -u)
+  for ticker in $TICKERS
+  do
+  cat ${FILES} |
+     awk -F ';' -v spaces="      " -v ticker="$ticker" -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" '
+     {if(match(ticker, $2) && $1 > date_after && $1 < date_before) {
+         price=$4;
+       }
+     }END{printf"%-s      : %*.2f\n", ticker,spaces, price}'
+  done
+  else
+    TICKERS=$(cat ${FILES} | awk -v string="$T_FILTER" -F ';' '{if(match(string, $2)){print $2}}' | sort -u)
+    for ticker in $TICKERS
+    do
+    cat ${FILES} |
+       awk -v spaces="      " -v ticker="$ticker" -F ';' -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" '
+       {if(match(ticker, $2) && $1 > date_after && $1 < date_before) {
+           price=$4;
+         }
+       }END{printf"%-s      : %*.2f\n", ticker,spaces, price}'
+     done
+fi
+}
+
+function hist_ord {
+  if [ "$T_FILTER" = "" ]
+  then
+  TICKERS=$(cat ${FILES} | awk -F ';' '{print($2)}' | sort -u)
+  for ticker in $TICKERS
+  do
+  cat ${FILES} |
+     awk -F ';' -v spaces="      " -v ticker="$ticker" -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" '
+     {if(match(ticker, $2) && $1 > date_after && $1 < date_before) {
+         counter++
+       }
+     }END{printf"%-s      : %*.2f\n", ticker,spaces,  counter}'
+  done
+  else
+    TICKERS=$(cat ${FILES} | awk -v string="$T_FILTER" -F ';' '{if(match(string, $2)){print $2}}' | sort -u)
+    for ticker in $TICKERS
+    do
+    cat ${FILES} |
+       awk -v spaces="      " -v ticker="$ticker" -F ';' -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" '
+       {if(match(ticker, $2) && $1 > date_after && $1 < date_before) {
+           counter++
+         }
+       }END{printf"%-s      : %*.2f\n", ticker,spaces, counter}'
+     done
 fi
 }
 
 
-
+if [ $HIST_ORD -eq 1 ]
+then
+    hist_ord
+exit 0
+fi
 
 if [ $LIST_TICK -eq 1 ]
 then
@@ -161,17 +231,18 @@ then
 exit 0
 fi
 
-TICKERS=""
-HELP=""
+
 ##EXECUTE POS COMMAND
 if [ $POS -eq 1 ]
 then
-    pos | sort -n -r -k 2
-    # else
-    # cat ${FILES} |
-    # awk -v string="$T_FILTER" -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" -F ';' '
-    # {if($1 > date_after && $1 < date_before && match(string, $2)) {print $2}}' | sort -u
-  fi
+    pos | sort -n -r -k 3
+
+exit 0
+fi
+if [ $LAST_PRICE -eq 1 ]
+then
+    last_price
+
 exit 0
 fi
 
