@@ -16,6 +16,7 @@ LAST_PRICE=0
 HIST_ORD=0
 GRAPH_POS=0
 WIDTH=0
+WIDTH_BOOL=0
 while [ $# -gt 0 ]; do
   case "$1" in
     "-h") echo "help used";;
@@ -53,7 +54,13 @@ while [ $# -gt 0 ]; do
     shift;;
     "-t") T_FILTER+="$2 "
     shift;;
-    "-w") WIDTH="$2"
+    "-w")
+    WIDTH_BOOL=1
+    WIDTH="$2"
+    if [ $WIDTH -le 0 ]
+    then
+    exit 1
+    fi
     shift;;
 
     *.log) FILES+="$1 "
@@ -235,37 +242,12 @@ function hist_ord {
 fi
 }
 
-# function find_max_val {
-#   TICKERS=$(cat ${FILES} | awk -F ';' '{print($2)}' | sort -u)
-#   for ticker in $TICKERS
-#   do
-#   VAR=$(filter | awk -F ';' -v ticker="$ticker" '{
-#     split(ticker, arr, " ");
-#     for(i in arr){
-#       if($2 == arr[i]){
-#         if($3 == "buy"){
-#           sum+=$6
-#         }
-#         else{
-#           sum-=$6
-#         }
-#         price=$4;
-#       }
-#     }
-#   }END{print int(sum*price)}')
-#   if [ "$VAR" -gt "$MAX_VAL" ]
-#   then
-#   MAX_VAL=$VAR
-#   fi
-#   done
-#   echo $MAX_VAL
-# }
-# find_max_val
+
 
 function graph_pos {
   if [ "$T_FILTER" = "" ]
   then
-    TICKERS=$(cat ${FILES} | awk -F ';' '{print($2)}' | sort -u)
+  TICKERS=$(cat ${FILES} | awk -F ';' '{print($2)}' | sort -u)
   for ticker in $TICKERS
   do
   filter | awk -F ';' -v spaces="      " -v ticker="$ticker"  '{
@@ -326,6 +308,118 @@ function graph_pos {
 fi
 }
 
+function find_max_val {
+  MAX_VAL=0 #NOT SURE ABOUT THIS Xd
+  TICKERS=$(cat ${FILES} | awk -F ';' '{print($2)}' | sort -u)
+  for ticker in $TICKERS
+  do
+  VAR=$(filter | awk -F ';' -v ticker="$ticker" '{
+    split(ticker, arr, " ");
+    for(i in arr){
+      if($2 == arr[i]){
+        if($3 == "buy"){
+          sum+=$6
+        }
+        else{
+          sum-=$6
+        }
+        price=$4;
+      }
+    }
+  }END{print int(sum*price)}')
+  if [ $VAR -lt 0 ]
+  then
+  VAR=$(($VAR*-1))
+  fi
+  if [ $VAR -gt $MAX_VAL ]
+  then
+  MAX_VAL=$VAR
+  fi
+  done
+  echo $MAX_VAL
+}
+
+
+function graph_pos_w {
+  if [ "$T_FILTER" = "" ]
+  then
+  MAX_VAL=$(find_max_val)
+  TICKERS=$(cat ${FILES} | awk -F ';' '{print($2)}' | sort -u)
+  STEP=$(($MAX_VAL/$WIDTH))
+  for ticker in $TICKERS
+  do
+  filter | awk -F ';' -v step=$STEP -v spaces="      " -v ticker="$ticker"  '{
+     split(ticker, arr, " ");
+     for(i in arr){
+       if($2 == arr[i]){
+         if($3 == "buy"){
+           sum+=$6
+         }
+         else{
+           sum-=$6
+         }
+         price=$4;
+       }
+     }
+     result = int((sum*price))
+   }END{
+     if(result < 0){
+       printf"%s%s", ticker,spaces
+       for(i=result+step; i < 0; i+=step){
+         printf"!"
+        }
+     }
+   else{
+     printf"%s%s", ticker,spaces
+     for(i=step; i < result; i+=step){
+       printf"#"
+      }
+   }
+   printf"\n"
+ }'
+  done
+  else
+
+    TICKERS=$(cat ${FILES} | awk -v string="$T_FILTER" -F ';' '{
+      split(string, arr, " ");
+      for(i in arr){
+      if($2 == arr[i]){print $2}}}' | sort -u)
+      MAX_VAL=$(find_max_val)
+      STEP=$(($MAX_VAL/$WIDTH))
+    for ticker in $TICKERS
+    do
+      filter | awk -F ';' -v step=$STEP -v spaces="      " -v ticker="$ticker"  '{
+         split(ticker, arr, " ");
+         for(i in arr){
+           if($2 == arr[i]){
+             if($3 == "buy"){
+               sum+=$6
+             }
+             else{
+               sum-=$6
+             }
+             price=$4;
+           }
+         }
+         result = int((sum*price))
+       }END{
+         if(result < 0){
+           printf"%s%s", ticker,spaces
+           for(i=result+step; i < 0; i+=step){
+             printf"!"
+            }
+         }
+       else{
+         printf"%s%s", ticker,spaces
+         for(i=step; i < result; i+=step){
+           printf"#"
+          }
+       }
+       printf"\n"
+     }'
+     done
+fi
+}
 
 if [ $HIST_ORD -eq 1 ]
 then
@@ -362,9 +456,14 @@ exit 0
 fi
 if [ $GRAPH_POS -eq 1 ]
 then
-    graph_pos
-
-exit 0
+  if [ $WIDTH_BOOL -eq 1 ]
+    then
+      graph_pos_w
+      exit 0
+  else
+     graph_pos
+     exit 0
+fi
 fi
 
 
