@@ -2,8 +2,6 @@
 POSIXLY_CORRECT=yes
 
 
-DATE_REGEX="" #TODO
-
 T_FILTER=""
 DATE_FILTER_A=""
 DATE_FILTER_B="4000-12-30 23:59:59"
@@ -55,11 +53,14 @@ while [ $# -gt 0 ]; do
     exit 1
     fi
     shift;;
-
-    *.log) FILES+="$1 "
+    *.gz) FILES+=$(gzip -dkc "$1" | cat)
+    FILES+="
+    "
+    #FILES+="${1%%.*}.log "
     ;;
-    *.gz) gzip -dk "$1"
-    FILES+="${1%%.*}.log "
+    *) FILES+=$(cat "$1")
+    FILES+="
+    "
     ;;
 # TODO rm "${1%%.*}.log"
 
@@ -73,13 +74,20 @@ while [ $# -gt 0 ]; do
   shift
 done
 
+STANDINPT=0
+if [ "$FILES" = "" ]
+then
+  STANDINPT=1
+  FILES+=$(cat -)
+fi
+
 function filter_tickers {
   if [ "$T_FILTER" = "" ]
   then
-  cat ${FILES} | awk -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" -F ';' '
+  echo "${FILES%?}" | awk -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" -F ';' '
   {if($1 > date_after && $1 < date_before){print $2}}' | sort -u
   else
-  cat ${FILES} | awk -v string="$T_FILTER" -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" -F ';' '
+  echo "${FILES%?}" | awk -v string="$T_FILTER" -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" -F ';' '
     {
       split(string, arr, " ");
       for(i in arr){
@@ -90,15 +98,15 @@ function filter_tickers {
     }' | sort -u
   fi
 }
-
 function filter {
 if [ "$T_FILTER" = "" ]
 then
-cat ${FILES} | awk -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" -F ';' '
+echo "${FILES%?}" | awk -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" -F ';' '
 {if($1 > date_after && $1 < date_before){print}}'
 else
-cat ${FILES} | awk -v string="$T_FILTER" -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" -F ';' '
+echo "${FILES%?}" | awk -v string="$T_FILTER" -v date_after="$DATE_FILTER_A" -v date_before="$DATE_FILTER_B" -F ';' '
   {
+    iteration=0
     split(string, arr, " ");
     for(i in arr){
       if($2 == arr[i]){
@@ -112,9 +120,14 @@ fi
 
 
 function list_tick {
-  filter | awk -F ';' '{
-    print $2
-  }'
+
+if [ $STANDINPT -eq 1 ]
+then
+filter_tickers
+else
+filter_tickers | awk -F '\n' '{if(NR >1){print}}'
+#TODO| awk '{if(NR != 1) {print}}'
+fi
 }
 
 function profit {
@@ -134,7 +147,7 @@ function profit {
    TICKERS=$(filter_tickers)
    for ticker in $TICKERS
    do
-   HELP=$(filter | awk -v spaces="      " -v ticker="$ticker" -F ';' '{
+   HELP=$(filter | awk -v ticker="$ticker" -F ';' '{
         split(ticker, arr, " ");
         for(i in arr){
        if($2 == arr[i]){
@@ -148,6 +161,27 @@ function profit {
         }
       }
     }END{printf"%d", length(sum * price)}')
+    if [ $HELP -gt $LONGEST_LEN ]
+    then
+      LONGEST_LEN=$HELP
+    fi
+    done
+    echo $LONGEST_LEN
+ }
+
+ function find_longest_lprice {
+   LONGEST_LEN=0
+   TICKERS=$(filter_tickers)
+   for ticker in $TICKERS
+   do
+   HELP=$(filter | awk -v ticker="$ticker" -F ';' '{
+        split(ticker, arr, " ");
+        for(i in arr){
+       if($2 == arr[i]){
+          price=$4;
+        }
+      }
+    }END{printf"%d", length(price)}')
     if [ $HELP -gt $LONGEST_LEN ]
     then
       LONGEST_LEN=$HELP
@@ -175,20 +209,20 @@ function pos {
            price=$4;
          }
        }
-     }END{printf"%-10s:% *.2f\n", ticker, l, sum*price}'
+     }END{printf"%-10s: %*.2f\n", ticker, l, sum*price}'
      done
 }
 
 function last_price {
-  LENGTH=$(find_longest_pos)
+  LENGTH=$(find_longest_lprice)
   TICKERS=$(filter_tickers)
   for ticker in $TICKERS
   do
-  filter | awk -F ';' -v spaces="      " -v ticker="$ticker" '{
+  filter | awk -F ';' -v l=$LENGTH -v ticker="$ticker" '{
        split(ticker, arr, " ");
        for(i in arr){
        if($2 == arr[i]){
-         price=$4;}
+         price=$4}
        }
      }END{printf"%-10s: %*.2f\n", ticker, l, price}'
   done
@@ -198,7 +232,7 @@ function hist_ord {
   TICKERS=$(filter_tickers)
   for ticker in $TICKERS
   do
-  filter | awk -F ';' -v l=$LENGTH -v ticker="$ticker" '{
+  filter | awk -F ';' -v ticker="$ticker" '{
      split(ticker, arr, " ");
      for(i in arr){
      if($2 == arr[i]){
@@ -206,12 +240,70 @@ function hist_ord {
        }
      }
      }END{
-       printf"%s%s", ticker,spaces
+       iteration=0
+       printf"%-10s:", ticker
       for(i=0; i < counter; i++){
+        if(iteration==0){
+          printf" "
+          iteration++
+        }
         printf"#";
       }
       printf"\n"
       }'
+  done
+}
+
+function find_max_val_hist {
+  MAX_VAL=0 #NOT SURE ABOUT THIS Xd
+  TICKERS=$1
+  for ticker in $TICKERS
+  do
+  VAR=$(filter | awk -F ';' -v ticker="$ticker" '{
+    split(ticker, arr, " ");
+    for(i in arr){
+      if($2 == arr[i]){
+        counter++
+      }
+    }
+  }END{print counter}')
+  if [ $VAR -gt $MAX_VAL ]
+  then
+  MAX_VAL=$VAR
+  fi
+  done
+  echo $MAX_VAL
+}
+
+function hist_ord_w {
+
+  TICKERS=$(filter_tickers)
+  MAX_VAL=$(find_max_val_hist "$TICKERS")
+  STEP=$(($MAX_VAL/$WIDTH))
+
+  for ticker in $TICKERS
+  do
+  filter | awk -F ';' -v max_val=$MAX_VAL -v width=$WIDTH -v  ticker="$ticker"  '{
+    step=(max_val/width)
+
+    split(ticker, arr, " ");
+    for(i in arr){
+    if($2 == arr[i]){
+        counter++
+      }
+    }
+   }END{
+     iteration=0
+     printf"%-10s:", ticker
+     for(i=step; i <= counter; i+=step){
+       if(iteration==0){
+         printf" "
+         iteration++
+       }
+       printf"#"
+      }
+   printf"\n"
+ }'
   done
 }
 
@@ -238,13 +330,13 @@ function graph_pos {
      result = int((sum*price)/1000)
    }END{
      if(result < 0){
-       printf"%s%s", ticker,spaces
+       printf"%-10s: ", ticker
        for(i=result; i < 0; i++){
          printf"!"
         }
      }
    else{
-     printf"%s%s", ticker,spaces
+     printf"%-10s: ", ticker
      for(i=0; i < result; i++){
        printf"#"
       }
@@ -254,7 +346,7 @@ function graph_pos {
   done
 }
 
-function find_max_val {
+function find_max_val_pos {
   MAX_VAL=0 #NOT SURE ABOUT THIS Xd
   TICKERS=$1
   for ticker in $TICKERS
@@ -289,11 +381,11 @@ function find_max_val {
 function graph_pos_w {
 
   TICKERS=$(filter_tickers)
-  MAX_VAL=$(find_max_val "$TICKERS")
-  STEP=$(($MAX_VAL/$WIDTH))
+  MAX_VAL=$(find_max_val_pos "$TICKERS")
   for ticker in $TICKERS
   do
-  filter | awk -F ';' -v step=$STEP -v spaces="      " -v ticker="$ticker"  '{
+  filter | awk -F ';' -v max_val=$MAX_VAL -v width=$WIDTH -v  ticker="$ticker"  '{
+    step=(max_val/width)
      split(ticker, arr, " ");
      for(i in arr){
        if($2 == arr[i]){
@@ -308,15 +400,24 @@ function graph_pos_w {
      }
      result = int((sum*price))
    }END{
+     iteration=0
      if(result < 0){
-       printf"%s%s", ticker,spaces
-       for(i=result+step; i < 0; i+=step){
+       printf"%-10s:", ticker
+       for(i=result+step; i <= 0; i+=step){
+         if(iteration==0){
+           printf" "
+           iteration++
+         }
          printf"!"
         }
      }
    else{
-     printf"%s%s", ticker,spaces
-     for(i=step; i < result; i+=step){
+     printf"%-10s:", ticker
+     for(i=step; i <= result; i+=step){
+       if(iteration==0){
+         printf" "
+         iteration++
+       }
        printf"#"
       }
    }
@@ -327,13 +428,20 @@ function graph_pos_w {
 
 if [ $HIST_ORD -eq 1 ]
 then
-    hist_ord
+    if [ $WIDTH_BOOL -eq 1 ]
+      then
+        hist_ord_w
+        exit 0
+    else
+       hist_ord
+       exit 0
+  fi
 exit 0
 fi
 
 if [ $LIST_TICK -eq 1 ]
 then
-    list_tick | sort -u
+    list_tick
 exit 0
 fi
 
@@ -348,7 +456,7 @@ fi
 ##EXECUTE POS COMMAND
 if [ $POS -eq 1 ]
 then
-    pos | sort -n -r -k 3
+    pos | sort -n -t ':' -r -k  2
 
 exit 0
 fi
@@ -375,5 +483,5 @@ fi
 
 #no command was given
 
-filter
+filter | head -n -1
 exit 0
