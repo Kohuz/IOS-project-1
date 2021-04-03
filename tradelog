@@ -1,5 +1,4 @@
 #!/bin/sh
-POSIXLY_CORRECT=yes
 
 
 T_FILTER=""
@@ -17,8 +16,28 @@ WIDTH=0
 WIDTH_BOOL=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    "-h") echo "help used";;
-    "--help") echo "help used";;
+    "-h" | "--help") echo "    PŘÍKAZ může být jeden z:
+        list-tick – výpis seznamu vyskytujících se burzovních symbolů, tzv. “tickerů”.
+        profit – výpis celkového zisku z uzavřených pozic.
+        pos – výpis hodnot aktuálně držených pozic seřazených sestupně dle hodnoty.
+        last-price – výpis poslední známé ceny pro každý ticker.
+        hist-ord – výpis histogramu počtu transakcí dle tickeru.
+        graph-pos – výpis grafu hodnot držených pozic dle tickeru.
+
+        =======================================================================
+
+    FILTR může být kombinace následujících:
+        -a DATETIME – after: jsou uvažovány pouze záznamy PO tomto datu (bez tohoto data).
+         DATETIME je formátu YYYY-MM-DD HH:MM:SS.
+        -b DATETIME – before: jsou uvažovány pouze záznamy PŘED tímto datem (bez tohoto data).
+        -t TICKER – jsou uvažovány pouze záznamy odpovídající danému tickeru.
+        -w WIDTH – u výpisu grafů nastavuje jejich šířku, tedy délku nejdelšího řádku na WIDTH.
+
+        =======================================================================
+
+    -h a --help vypíšou nápovědu."
+      exit 0;;
+
 
     "list-tick") command+=1
     LIST_TICK=1;;
@@ -50,17 +69,24 @@ while [ $# -gt 0 ]; do
     WIDTH="$2"
     if [ $WIDTH -le 0 ]
     then
+    >&2 echo "Chybné spuštění: Argument -w musí být kladné číslo."
     exit 1
     fi
     shift;;
-    *.gz) FILES+=$(gzip -dkc "$1" | cat)
-    FILES+="
+    *.gz) FILES="${FILES}$(gzip -dkc "$1" | cat)"
+    FILES="${FILES}
     "
     #FILES+="${1%%.*}.log "
     ;;
-    *) FILES+=$(cat "$1")
-    FILES+="
+    *)if [ -r "$1" ]
+    then
+    FILES="${FILES}$(cat "$1")"
+    FILES="${FILES}
     "
+    else
+    >&2 echo "Chybné spuštění: Soubor nelze přečíst/neplatný soubor."
+    exit 1
+    fi
     ;;
 # TODO rm "${1%%.*}.log"
 
@@ -68,8 +94,8 @@ while [ $# -gt 0 ]; do
   esac
   if [ $command -gt 1 ]
   then
-  echo "error"
-  exit
+  >&2 echo "Chybné spuštění: Zadán více než 1 příkaz."
+  exit 1
   fi
   shift
 done
