@@ -1,5 +1,6 @@
-#!/bin/sh
+#!/bin/bash
 
+export posixly_correct=yes
 
 T_FILTER=""
 DATE_FILTER_A=""
@@ -75,14 +76,14 @@ while [ $# -gt 0 ]; do
     shift;;
     *.gz) FILES="${FILES}$(gzip -dkc "$1" | cat)"
     FILES="${FILES}
-    "
+"
     #FILES+="${1%%.*}.log "
     ;;
     *)if [ -r "$1" ]
     then
     FILES="${FILES}$(cat "$1")"
     FILES="${FILES}
-    "
+"
     else
     >&2 echo "Chybné spuštění: Soubor nelze přečíst/neplatný soubor."
     exit 1
@@ -99,6 +100,8 @@ while [ $# -gt 0 ]; do
   fi
   shift
 done
+
+# echo "$FILES"
 
 STANDINPT=0
 if [ "$FILES" = "" ]
@@ -151,7 +154,7 @@ if [ $STANDINPT -eq 1 ]
 then
 filter_tickers
 else
-filter_tickers | awk -F '\n' '{if(NR >1){print}}'
+filter_tickers
 #TODO| awk '{if(NR != 1) {print}}'
 fi
 }
@@ -186,7 +189,8 @@ function profit {
           price=$4;
         }
       }
-    }END{printf"%d", length(sum * price)}')
+
+    }END{printf"%.2f", sum * price}' | awk '{print length($1)}')
     if [ $HELP -gt $LONGEST_LEN ]
     then
       LONGEST_LEN=$HELP
@@ -218,6 +222,7 @@ function profit {
 
 
 function pos {
+
     TICKERS=$(filter_tickers)
     LENGTH=$(find_longest_pos)
     for ticker in $TICKERS
@@ -509,5 +514,5 @@ fi
 
 #no command was given
 
-filter | head -n -1
+filter
 exit 0
